@@ -1,29 +1,31 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
+const cors = require('cors');
 
 const app = express();
 
 app.use(bodyParser.json());
+app.use(cors());
 
-const database = {
+let database = {
     users: [
-        {
-            id: '123',
-            name: 'John',
-            email: 'john@gmail.com',
-            password: 'cookies',
-            entries: 0,
-            joined: new Date()
-        },
-        {
-            id: '124',
-            name: 'Sally',
-            email: 'sally@gmail.com',
-            password: 'bananas',
-            entries: 0,
-            joined: new Date()
-        }
+        // {
+        //     id: '123',
+        //     name: 'John',
+        //     email: 'john@gmail.com',
+        //     password: 'cookies',
+        //     entries: 0,
+        //     joined: new Date()
+        // },
+        // {
+        //     id: '124',
+        //     name: 'Sally',
+        //     email: 'sally@gmail.com',
+        //     password: 'bananas',
+        //     entries: 0,
+        //     joined: new Date()
+        // }
     ]
 }
 app.get('/', (req, res) => {
@@ -32,33 +34,35 @@ app.get('/', (req, res) => {
 
 app.post('/signin', (req, res) => {
     let found = false;
+    let id = 0;
     database.users.forEach(user => {
-        if (user.email === req.email) {
-            bcrypt.compare(req.body.password, user.password, function (err, res) {
-                res.json('succcess');
-            });
-            found = true;
+        if (user.email === req.body.email) {
+            found = bcrypt.compareSync(req.body.password, user.password);
+            id = user.id
         }
     })
-    if (!found) {
-        res.status(404).json('no such user');
+
+    if (found) {
+        res.send(database.users[id - 1]);
+    } else {
+        res.send('no such user');
     }
 })
 
 app.post('/register', (req,res) => {
     const {email, name, password} = req.body;
-    bcrypt.hash(password, null, function(err, hash) {
+
+    bcrypt.hash(password, 10, function(err, hash) {
         database.users.push({
-            id: '125',
+            id: database.users.length + 1,
             name: name,
             email: email,
             password: hash,
             entries: 0,
             joined: new Date()
-        })
+        });
+        res.json(database.users[database.users.length - 1]);
     });
-    res.json(database.users[database.users.length-1]);
-    
 })
 
 app.get('/profile/:id', (req, res) => {
