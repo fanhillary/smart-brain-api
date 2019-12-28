@@ -18,77 +18,82 @@ const app = express();
 
 app.use(bodyParser.json());
 app.use(cors());
-let database = {
-    users: []
-}
+
 app.get('/', (req, res) => {
-    res.send(database.users);
+    // res.send(database.users);
 })
 
 app.post('/signin', (req, res) => {
     let found = false;
     let id = 0;
-    database.users.forEach(user => {
-        if (user.email === req.body.email) {
-            found = bcrypt.compareSync(req.body.password, user.password);
-            id = user.id
+    db.select('email', 'hash').from('login')
+    .where({email: req.body.email})
+    .then(data => {
+        const isValid = bcrypt.compareSync(req.body.password, data[0].hash);
+        if (isValid) {
+            db.select('*').from('users').where({email:req.body.email})
+            .then(user => {
+                res.json(user[0]);
+            })
+            .catch(err => res.status(400).json('unable to get user'))
+        } else {
+            res.status(400).json('wrong credentials');
         }
     })
-
-    if (found) {
-        res.send(database.users[id - 1]);
-    } else {
-        res.send('no such user');
-    }
+    .catch(err => res.status(400).json('wrong credentials'))
 })
 
 app.post('/register', (req,res) => {
     const {email, name, password} = req.body;
-    db('users').insert({
-      email: email,
-      name: name,
-      joined: new Date()
-    }).then(console.log)
-    bcrypt.hash(password, 10, function(err, hash) {
-        database.users.push({
-            id: database.users.length + 1,
-            name: name,
-            email: email,
-            password: hash,
-            entries: 0,
-            joined: new Date()
-        });
-        res.json(database.users[database.users.length - 1]);
-    });
+    const hash = bcrypt.hashSync(password, 10);
+    db.transaction(trx => {
+        trx.insert({
+            hash: hash,
+            email: email
+        })
+        .into('login')
+        .returning('email')
+        .then(loginEmail => {
+            return trx('users')
+            .returning('*')
+            .insert({
+                email: loginEmail[0],
+                name: name,
+                joined: new Date()
+            })
+            .then(response => {
+                res.json(response[0]);
+            })
+        })
+        .then(trx.commit)
+        .then(trx.rollback)
+    })
+    .catch(err => res.status(400).json('unable to register'))
 })
+    
 
 app.get('/profile/:id', (req, res) => {
     const {id} = req.params;
-    let found = false;
-    database.users.forEach(user => {
-        if (user.id === id) {
-            res.json(user);
-            found = true;
+    db.select('*').from('users').where({id: id})
+    .then(user => {
+        if (user.length) {
+            res.json(user[0]);
+        } else {
+            res.status(404).json('no such user');
         }
     })
-    if (!found) {
-        res.status(404).json('no such user');
-    }
 })
 
 app.put('/image', (req,res) => {
     const {id} = req.body;
-    let found = false;
-    database.users.forEach(user => {
-        if (user.id === id) {
-            user.entries++;
-            found = true;
-            res.json(user.entries);
-        }
+    // let found = false;
+    db('users').where({id : id})
+    .increment('entries', 1)
+    .returning('entries')
+    .then(entries => {
+        res.json(entries[0])
     })
-    if (!found) {
-        res.status(404).json('no such user');
-    }
+    .catch(err => res.status(404).json('error updating entries'))
 })
 
 app.listen(3000, () => {
