@@ -7,7 +7,7 @@ const knex = require('knex');
 const db = knex({
   client: 'pg',
   connection: {
-    host : '127.0.0.1',
+    host : 'postgresql-dimensional-61752',
     user : 'hifan',
     password : '',
     database : 'smart-brain'
@@ -24,8 +24,6 @@ app.get('/', (req, res) => {
 })
 
 app.post('/signin', (req, res) => {
-    let found = false;
-    let id = 0;
     db.select('email', 'hash').from('login')
     .where({email: req.body.email})
     .then(data => {
